@@ -1,0 +1,51 @@
+# pyproject.toml
+
+[build-system]
+requires = ["setuptools>61.0.0", "wheel", "build", "twine"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["phageml"]
+
+[project]
+name = "phageml"
+version = "0.0.0"
+description = "PhageML - Phage Machine Learning"
+readme = "README.md"
+authors = [
+    {name = "James W. Gillespie", email = "gillejw@auburn.edu"}
+]
+license = { file = "LICENSE" }
+classifiers = [
+    'Development Status :: 3 - Alpha',
+    'Environment :: Console',
+    'Intended Audience :: Science/Research',
+    'Natural Language :: English',
+    'Programming Language :: Python :: 3',
+    'Topic :: Scientific/Engineering :: Bio-Informatics'
+]
+keywords = ["phage display", "machine learning"]
+requires-python = ">=3"
+
+[project.urls]
+Homepage = "https://github.com/gillejw/PhageML"
+Issues = "https://github.com/gillejw/PhageML/issues"
+
+[project.scripts]
+phageml = "phageml.__main__:main"
+
+[project.optional-dependencies]
+dev = ["pytest", "pylint"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra"
+testpaths = [
+    "tests"
+]
+
+[tool.pylint]
+max-line-length = 88
+disable = [
+    "W0104", # (pointless-statement)
+]

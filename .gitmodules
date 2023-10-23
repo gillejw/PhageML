@@ -1,0 +1,3 @@
+[submodule "EasleyHPC"]
+	path = EasleyHPC
+	url = https://github.com/gillejw/EasleyHPC

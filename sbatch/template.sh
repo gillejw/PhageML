@@ -16,4 +16,4 @@ pip install --quiet torch==1.7.1+cu110 torchvision==0.8.2+cu110 torchaudio==0.7.
 
 pip3 install --user -r /home/gillejw/coding/PhageML/requirements.txt
 
-python /home/gillejw/coding/PhageML/src/hello.py
+python /home/gillejw/coding/PhageML/src/phageml.py /scratch/gillejw/data2/sequence_summary_10k.csv

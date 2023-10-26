@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 
 import math
-import numpy as np
 import pandas as pd
-import re
 import torch
 import torch.cuda
+import torch.nn as nn
+import torch.optim
+import matplotlib.pyplot as plt
 
 from torch import default_generator, randperm
 from torch._utils import _accumulate
@@ -65,12 +66,36 @@ def random_split(dataset, lengths,
     indices = randperm(sum(lengths), generator=generator).tolist()  # type: ignore[call-overload]
     return [Subset(dataset, indices[offset - length : offset]) for offset, length in zip(_accumulate(lengths), lengths)]
 
+alphabet = ["A","R","N","D","C","Q","E","G","H","I","L","K","M","F","P","S","T","W","Y","V"]
+
+def one_hot_encode(data, alphabet) -> list:
+        tensor_list = []
+        for peptide in data:
+            t = torch.zeros(len(peptide), 1, len(alphabet), dtype=torch.int8)
+            for i, A in enumerate(peptide):
+                t[i][0][alphabet.index(peptide[i])] = 1
+            tensor_list.append(t)
+        return tensor_list
+
+def decode_OHE(output:list) -> list:
+    peptide_list = []
+    for peptide in output:
+        p = str()
+        for OHEtensor in peptide:
+            pass
+    return peptide_list
+
+def return_category(output, categories):
+    out_idx = torch.argmax(output).item()
+    return categories[out_idx]
+
 class PhageTissueDistributionDataset(Dataset):
     '''Define the the Dataset for Analysis of Phage Distribution in Tissues'''
     def __init__(self, infile: str):
         outfile = pd.read_csv(infile)
         self.x = outfile.iloc[:, 1:]
-        self.data_y = outfile.iloc[:, 0].values
+        self.y = outfile.iloc[:, 0]
+        self.data_y = one_hot_encode(self.y, alphabet)
         #self.data_x = torch.tensor(self.x.values)
         self.JGI23_x = torch.tensor(self.split_tissues("JGI23", "1hr", "tpm").values)
     
@@ -80,8 +105,34 @@ class PhageTissueDistributionDataset(Dataset):
     def __len__(self):
         return len(self.data_y)
     
-    def split_tissues(self, mouse, time, outtype):
+    def split_tissues(self, mouse: str, time: str, outtype: str) -> pd.DataFrame:
         return self.x.loc[:,self.x.columns.str.contains(mouse) & self.x.columns.str.contains(time) & self.x.columns.str.contains(outtype) & self.x.columns.str.endswith("R1")]
+    
+    def get_categories(self) -> list:
+        categories = []
+        for item in self.split_tissues("JGI23", "1hr", "tpm"):
+            categories.append(item.split(" ")[1]) # type: ignore[call-overload]
+        return categories
+
+class PhageRNN(nn.Module):
+    '''Defines the Phage RNN Model for Phage Distribution in Tissues'''
+    def __init__(self, input_size, hidden_size, output_size):
+        super(PhageRNN, self).__init__()
+
+        self.hidden_size = hidden_size
+        self.i2h = nn.Linear(input_size+hidden_size, hidden_size)
+        self.i2o = nn.Linear(input_size+hidden_size, output_size)
+        self.softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, input_tensor, hidden_tensor):
+        combined = torch.cat((input_tensor, hidden_tensor), 1)
+        hidden = self.i2h(combined)
+        output = self.i2o(combined)
+        output = self.softmax(output)
+        return output, hidden
+    
+    def init_hidden(self):
+        return torch.zeros(1, self.hidden_size)
 
 def main():
     '''main function loop'''
@@ -92,14 +143,39 @@ def main():
         print("Name of the CUDA device: " + str(torch.cuda.get_device_name(torch.cuda.current_device())))
     print("Input file: " + str(args.input))
 
+    ## Define model hyperparameters
+    batchSize = 64
+    n_hidden = 128
+    total_loss = []
+    n_iterations = 100
+    learning_rate = 0.005
+
     phageDist = PhageTissueDistributionDataset(args.input)
 
     ## Split the data into training/testing datasets - 80% training & 20% testing
     train, test = random_split(phageDist, [0.8, 0.2], generator=torch.Generator().manual_seed(42))
+    categories = phageDist.get_categories()
 
     ## Prepare data from training
-    train_dataloader = DataLoader(train, batch_size=64, shuffle=True, drop_last=True)
-    test_dataloader = DataLoader(test, batch_size=64, shuffle=True, drop_last=True)
+    train_dataloader = DataLoader(train, batch_size=batchSize, shuffle=True, drop_last=True)
+    test_dataloader = DataLoader(test, batch_size=batchSize, shuffle=True, drop_last=True)
+    
+    ## Create PhageRNN model, loss function, and optimizer
+    rnn = PhageRNN(len(alphabet), n_hidden, len(categories))    
+    loss_func = nn.NLLLoss()
+    optimizer = torch.optim.SGD(rnn.parameters(), lr=learning_rate)
+    hidden_tensor = rnn.init_hidden()
+
+    ## Create training loop
+    for epoch in range(n_iterations):
+        for X_batch, Y_batch in train_dataloader:
+            for i in range(batchSize): ### NEED TO UPDATE TRAINING LOOP
+                y_pred = rnn(X_batch, hidden_tensor)
+                loss = loss_func(y_pred, Y_batch)
+        
+    ## Evaluate training
+    rnn.eval()
+
 
 if __name__ == "__main__":
     import argparse
